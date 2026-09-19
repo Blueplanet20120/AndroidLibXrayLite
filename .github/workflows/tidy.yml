@@ -5,6 +5,10 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -85,10 +89,16 @@ jobs:
 
       - name: Trigger build
         if: env.needs_update == 'true' && steps.auto-commit-action.outputs.changes_detected == 'true'
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "缺少仓库 Secret GH_PAT，无法触发 main.yml 发版。GITHUB_TOKEN 不会启动下一个 workflow。"
+            exit 1
+          fi
           curl -X POST \
             -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Authorization: token $GH_PAT" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches \
             -d "{
               \"ref\": \"main\",
