@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
+        description: "有值则发 GitHub Release（与 Xray-core 同 tag，例如 v26.9.9）；留空只上传 Artifacts"
         required: false
         type: string
   pull_request:
@@ -13,14 +14,19 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
 
     - name: Checkout repository
       uses: actions/checkout@v6
-      
+      with:
+        fetch-depth: 0
+
     - name: Setup Golang
       uses: actions/setup-go@v6
       with:
@@ -30,7 +36,7 @@ jobs:
       run: |
         go install golang.org/x/mobile/cmd/gomobile@latest
         export PATH=$PATH:~/go/bin
-        
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v4
       with:
@@ -53,7 +59,7 @@ jobs:
          gomobile init
          go mod tidy
          gomobile bind -v -androidapi 24 -trimpath -ldflags='-s -w -buildid= -checklinkname=0' ./
- 
+
     - name: Upload build artifacts
       if: github.event.inputs.release_tag == ''
       uses: actions/upload-artifact@v7
@@ -66,6 +72,9 @@ jobs:
       if: github.event.inputs.release_tag != ''
       uses: svenstaro/upload-release-action@v2
       with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ./libv2ray*r
         tag: ${{ github.event.inputs.release_tag }}
         file_glob: true
+        overwrite: true
+        make_latest: true

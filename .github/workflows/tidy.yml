@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout our repository
         uses: actions/checkout@v5
@@ -90,10 +90,10 @@ jobs:
       - name: Trigger build
         if: env.needs_update == 'true' && steps.auto-commit-action.outputs.changes_detected == 'true'
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ secrets.ANDROIDLIBXRAYLITE }}
         run: |
           if [ -z "$GH_PAT" ]; then
-            echo "缺少仓库 Secret GH_PAT，无法触发 main.yml 发版。GITHUB_TOKEN 不会启动下一个 workflow。"
+            echo "缺少仓库 Secret ANDROIDLIBXRAYLITE，无法触发 main.yml 发版。GITHUB_TOKEN 不会启动下一个 workflow。"
             exit 1
           fi
           curl -X POST \
