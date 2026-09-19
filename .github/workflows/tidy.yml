@@ -100,7 +100,7 @@ jobs:
       - name: Commit and push changes
         id: auto-commit-action
         if: env.needs_update == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Updating xray-core to ${{ env.LATEST_TAG_NAME }} ${{ env.LATEST_TAG_SHA }}
           tagging_message: ${{ env.LATEST_TAG_NAME }}
