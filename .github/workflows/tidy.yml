@@ -16,7 +16,8 @@ jobs:
       - name: Checkout our repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: '0'
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Fetch latest release tag from external repository
         id: fetch-release
@@ -32,23 +33,40 @@ jobs:
       - name: Fetch current repository release tag
         id: fetch-current-tag
         run: |
-          CURRENT_TAG_NAME=$(git describe --tags --abbrev=0)
-          echo "Current tag in this repo: $CURRENT_TAG_NAME"
+          CURRENT_TAG_NAME=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          echo "Current tag in this repo: ${CURRENT_TAG_NAME:-<none>}"
           echo "CURRENT_TAG_NAME=$CURRENT_TAG_NAME" >> $GITHUB_ENV
 
       - name: Compare tags
         id: compare-tags
         run: |
-          if [ "$LATEST_TAG_NAME" != "$CURRENT_TAG_NAME" ]; then
-              if [ "$(printf '%s\n' "$LATEST_TAG_NAME" "$CURRENT_TAG_NAME" | sort -V | tail -n1)" == "$CURRENT_TAG_NAME" ]; then 
-                echo "Upstream LATEST_TAG_NAME less than the CURRENT_TAG_NAME, no update needed."
-              else
-                echo "Tags are different. Updating..."
-                echo "needs_update=true" >> $GITHUB_ENV
-              fi
+          echo "needs_update=false" >> $GITHUB_ENV
+          echo "need_release=false" >> $GITHUB_ENV
+
+          RELEASE_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${LATEST_TAG_NAME}")
+          echo "GitHub Release ${LATEST_TAG_NAME}: HTTP $RELEASE_HTTP"
+
+          if [ -z "$CURRENT_TAG_NAME" ]; then
+            echo "本仓库还没有 git tag，将按上游 $LATEST_TAG_NAME 更新并发版"
+            echo "needs_update=true" >> $GITHUB_ENV
+            echo "need_release=true" >> $GITHUB_ENV
+          elif [ "$LATEST_TAG_NAME" != "$CURRENT_TAG_NAME" ]; then
+            if [ "$(printf '%s\n' "$LATEST_TAG_NAME" "$CURRENT_TAG_NAME" | sort -V | tail -n1)" == "$CURRENT_TAG_NAME" ]; then
+              echo "上游 tag 不比当前新，跳过依赖更新"
+            else
+              echo "Xray-core 有新 tag，更新 go.mod"
+              echo "needs_update=true" >> $GITHUB_ENV
+              echo "need_release=true" >> $GITHUB_ENV
+            fi
           else
-            echo "Tags are the same. No update needed."
-            echo "needs_update=false" >> $GITHUB_ENV
+            echo "git tag 已与上游相同: $CURRENT_TAG_NAME"
+          fi
+
+          if [ "$RELEASE_HTTP" != "200" ]; then
+            echo "还没有 GitHub Release $LATEST_TAG_NAME，将触发 Build 发版"
+            echo "need_release=true" >> $GITHUB_ENV
           fi
 
       - name: Setup Golang
@@ -88,7 +106,7 @@ jobs:
           tagging_message: ${{ env.LATEST_TAG_NAME }}
 
       - name: Trigger build
-        if: env.needs_update == 'true' && steps.auto-commit-action.outputs.changes_detected == 'true'
+        if: env.need_release == 'true'
         env:
           GH_PAT: ${{ secrets.ANDROIDLIBXRAYLITE }}
         run: |
